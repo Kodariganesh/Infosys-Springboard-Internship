@@ -25,7 +25,7 @@ The project begins with an exploratory data analysis conducted on two datasets l
 
 •	Utilize AI to suggest responses based on ticket content, reducing response time and improving consistency.
 ### Integrations
-•	Integrate with various CRM and support tools to streamline ticket management.
+•	Integrate with various Zapier and Webhook tools to streamline ticket management.
 
 •	Ensure seamless data flow between different systems to provide a unified view of customer interactions
 ## conclusion
