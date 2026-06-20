@@ -1,0 +1,3 @@
+"""
+Sentiment module initialization
+"""

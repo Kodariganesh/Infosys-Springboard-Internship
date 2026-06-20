@@ -1,0 +1,3 @@
+"""
+Escalation module initialization
+"""

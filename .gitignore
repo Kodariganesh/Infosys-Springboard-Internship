@@ -1,0 +1,27 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Python compiled cache
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Secrets and credentials (never commit your api keys!)
+.env
+Customer_Support_Ticket/.env
+
+# Application logs
+logs/
+Customer_Support_Ticket/logs/
+*.log
+
+# Local databases and temporary data
+Customer_Support_Ticket/data/local_tickets_db.json
+Customer_Support_Ticket/data/local_tickets_db.json.tmp
+
+# OS-specific files
+.DS_Store
+Thumbs.db
