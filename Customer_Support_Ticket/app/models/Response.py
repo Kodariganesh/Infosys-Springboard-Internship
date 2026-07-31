@@ -4,11 +4,13 @@ Automated response generation wrapper (Response.py)
 from app.responses.generator import ResponseGenerator
 from app.models.Sentiment import get_sentiment
 
-def automate_response(title: str, body: str, customer_name: str = "Customer", product_name: str = "our service"):
+def automate_response(title: str, body: str, customer_name: str = "Customer",
+                      product_name: str = "our service", sentiment: str = None):
     generator = ResponseGenerator()
-    # Fetch sentiment for the template mapping
-    sent_res = get_sentiment(title, body)
-    sent_str = sent_res.get("sentiment", "Neutral").lower()
+    # Reuse a caller-provided result when available; otherwise analyze locally.
+    if sentiment is None:
+        sentiment = get_sentiment(title, body).get("sentiment", "Neutral")
+    sent_str = sentiment.lower()
     
     mapped_sentiment = "neutral"
     if "positive" in sent_str:

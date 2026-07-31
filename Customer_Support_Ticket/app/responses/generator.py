@@ -174,7 +174,7 @@ class ResponseGenerator:
             template = self.templates[sent]
             reply = template.format(name=customer_name, product=product_name)
             if api_error:
-                reply = f"[SYSTEM NOTE: AI Generation Failed. Reason: {api_error}. Falling back to static template.]\n\n" + reply
+                logger.warning("AI response generation unavailable: %s", api_error)
             
         keywords = self.extract_keywords(f"{subject} {body}")
         

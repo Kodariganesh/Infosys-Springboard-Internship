@@ -3,10 +3,13 @@ Sentiment analysis wrapper (Sentiment.py)
 """
 from app.sentiment.analyzer import HuggingFaceSentimentAnalyzer
 
+# Keep one analyzer per process so the Hugging Face model is not reloaded for
+# every API or dashboard request.
+_analyzer = HuggingFaceSentimentAnalyzer()
+
 def analyze_sentiment(subject: str, body: str):
-    analyzer = HuggingFaceSentimentAnalyzer()
     text = f"{subject} {body}".strip()
-    result = analyzer.analyze(text)
+    result = _analyzer.analyze(text)
     # Map lowercase sentiment to Title Case or expected formats
     sent_map = {
         "positive": "Slightly Positive",

@@ -1,7 +1,5 @@
 import streamlit as st
 import pandas as pd
-import datetime
-import json
 from pathlib import Path
 
 import sys
@@ -22,67 +20,7 @@ if str(project_root) not in sys.path:
 from app.models.Sentiment import get_sentiment
 from app.models.Issue import escalateit
 from app.models.Response import automate_response
-
-# Central configuration paths
-PROJECT_ROOT = Path(__file__).parent.parent
-DATA_DIR = PROJECT_ROOT / "data"
-TICKETS_DB_PATH = DATA_DIR / "local_tickets_db.json"
-
-# Function to save ticket locally for robustness (fallback for MongoDB)
-def save_ticket_locally(title, body, sentiment, escalation, response):
-    tickets = []
-    if TICKETS_DB_PATH.exists():
-        try:
-            with open(TICKETS_DB_PATH, "r") as f:
-                tickets = json.load(f)
-        except Exception:
-            tickets = []
-            
-    new_ticket = {
-        "id": len(tickets) + 1,
-        "title": title,
-        "body": body,
-        "timestamp": datetime.datetime.utcnow().isoformat(),
-        "sentiment": sentiment,
-        "escalation": escalation,
-        "response": response
-    }
-    tickets.append(new_ticket)
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    with open(TICKETS_DB_PATH, "w") as f:
-        json.dump(tickets, f, indent=4)
-    return new_ticket
-
-# Fetch local tickets
-def load_local_tickets():
-    if TICKETS_DB_PATH.exists():
-        try:
-            with open(TICKETS_DB_PATH, "r") as f:
-                return json.load(f)
-        except Exception:
-            return []
-    # Seed default mock tickets for UI demo when empty
-    default_tickets = [
-        {
-            "id": 1,
-            "title": "System offline error",
-            "body": "The server has been completely down since 3 PM. Critical issue!",
-            "timestamp": (datetime.datetime.utcnow() - datetime.timedelta(hours=2)).isoformat(),
-            "sentiment": "Slightly Negative",
-            "escalation": "Escalation Keyword Found: 'critical'",
-            "response": "Re: System offline error\n\nDear Customer,\n\nWe apologize for the inconvenience..."
-        },
-        {
-            "id": 2,
-            "title": "Love the new updates",
-            "body": "Really happy with the new features in the dashboard, great work team!",
-            "timestamp": (datetime.datetime.utcnow() - datetime.timedelta(hours=1)).isoformat(),
-            "sentiment": "Slightly Positive",
-            "escalation": False,
-            "response": "Re: Love the new updates\n\nDear Customer,\n\nThank you for the amazing feedback..."
-        }
-    ]
-    return default_tickets
+from app.storage import load_tickets, save_ticket
 
 def main():
     st.set_page_config(
@@ -200,9 +138,9 @@ def main():
             </div>
         """, unsafe_allow_html=True)
         
-        tickets = load_local_tickets()
+        tickets = load_tickets()
         total_tickets = len(tickets)
-        escalated_tickets = [t for t in tickets if t.get("escalation") is not False]
+        escalated_tickets = [t for t in tickets if t.get("escalation")]
         total_escalated = len(escalated_tickets)
         
         # Calculate sentiments
@@ -295,7 +233,7 @@ def main():
                     st.write(f"**Model Confidence**: {score:.2%}")
                     
                     # Persist ticket interaction
-                    save_ticket_locally(title, body, sentiment, False, "")
+                    save_ticket(title, body, sentiment, None)
 
     # 3. ISSUE ESCALATION
     elif selected == "Issue Escalation":
@@ -305,13 +243,14 @@ def main():
         with st.form("escalation_form"):
             title = st.text_input("Ticket Subject", placeholder="e.g. Critical database error")
             body = st.text_area("Ticket Body / Details", placeholder="Enter query text details...")
+            priority = st.slider("Priority", min_value=1, max_value=5, value=1)
             submit = st.form_submit_button("Check Escalation Status")
             
         if submit:
             if not title or not body:
                 st.warning("Please fill in both fields.")
             else:
-                reason = escalateit(title, body)
+                reason = escalateit(title, body, priority)
                 if reason:
                     st.error(f"🚨 Escalated! Reason: {reason}")
                 else:
@@ -319,7 +258,7 @@ def main():
                     
                 # Save state
                 sent = get_sentiment(title, body).get("sentiment", "Neutral")
-                save_ticket_locally(title, body, sent, reason, "")
+                save_ticket(title, body, sent, reason, priority=priority)
 
     # 4. AUTOMATED RESPONSE
     elif selected == "Automated Response":
@@ -337,8 +276,10 @@ def main():
                 st.warning("Please enter Subject and Body.")
             else:
                 with st.spinner("Processing automated templates..."):
-                    subject, reply = automate_response(title, body, customer_name=name)
                     sentiment = get_sentiment(title, body).get("sentiment", "Neutral")
+                    subject, reply = automate_response(
+                        title, body, customer_name=name, sentiment=sentiment
+                    )
                     escalation = escalateit(title, body)
                     
                     st.success("Drafting Successful!")
@@ -347,7 +288,7 @@ def main():
                     st.text_area("Body Template", value=reply, height=300)
                     
                     # Store final generated interaction
-                    save_ticket_locally(title, body, sentiment, escalation, f"{subject}\n\n{reply}")
+                    save_ticket(title, body, sentiment, escalation, f"{subject}\n\n{reply}")
 
 if __name__ == "__main__":
     main()

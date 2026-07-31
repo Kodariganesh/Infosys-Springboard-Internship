@@ -1,12 +1,9 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import logging
-import json
-import datetime
 from pathlib import Path
 
 import sys
-from pathlib import Path
 
 # Add project root to Python path to ensure 'app' imports work correctly
 project_root = Path(__file__).resolve().parent.parent
@@ -17,6 +14,7 @@ if str(project_root) not in sys.path:
 from app.models.Sentiment import get_sentiment
 from app.models.Response import automate_response
 from app.models.Issue import escalateit
+from app.storage import save_ticket
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -28,17 +26,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Central configuration paths for saving processed tickets locally
-PROJECT_ROOT = Path(__file__).parent.parent
-DATA_DIR = PROJECT_ROOT / "data"
-TICKETS_DB_PATH = DATA_DIR / "local_tickets_db.json"
-
-
 # Define the Ticket schema
 class Ticket(BaseModel):
     subject: str
     body: str
     customer_email: str
+    priority: int = Field(default=1, ge=1, le=5)
 
 
 # Define the response schema
@@ -46,6 +39,7 @@ class TicketProcessedResponse(BaseModel):
     subject: str
     body: str
     customer_email: str
+    priority: int
     sentiment: str
     sentiment_score: float
     escalation_status: str
@@ -53,39 +47,8 @@ class TicketProcessedResponse(BaseModel):
     saved_to_db: bool
 
 
-# Function to save ticket locally for consistency with Streamlit UI
-def save_ticket_locally(email, title, body, sentiment, escalation, response):
-    tickets = []
-    if TICKETS_DB_PATH.exists():
-        try:
-            with open(TICKETS_DB_PATH, "r") as f:
-                tickets = json.load(f)
-        except Exception:
-            tickets = []
-
-    new_ticket = {
-        "id": len(tickets) + 1,
-        "email": email,
-        "title": title,
-        "body": body,
-        "timestamp": datetime.datetime.utcnow().isoformat(),
-        "sentiment": sentiment,
-        "escalation": escalation,
-        "response": response,
-    }
-    tickets.append(new_ticket)
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    try:
-        with open(TICKETS_DB_PATH, "w") as f:
-            json.dump(tickets, f, indent=4)
-        return True
-    except Exception as e:
-        logger.error(f"Failed to save ticket locally: {e}")
-        return False
-
-
 @app.post("/process-ticket/", response_model=TicketProcessedResponse)
-async def process_ticket(ticket: Ticket):
+def process_ticket(ticket: Ticket):
     try:
         # Step 1: Run Sentiment Analysis
         sentiment_res = get_sentiment(ticket.subject, ticket.body)
@@ -93,40 +56,35 @@ async def process_ticket(ticket: Ticket):
         score = sentiment_res.get("score", 0.5)
 
         # Step 2: Evaluate Escalation Status
-        escalated_reason = escalateit(ticket.subject, ticket.body)
+        escalated_reason = escalateit(ticket.subject, ticket.body, ticket.priority)
         escalation_status = escalated_reason if escalated_reason else "No escalation triggered"
 
         # Step 3: Draft Template Response
         reply_subject, reply_body = automate_response(
-            ticket.subject, ticket.body
+            ticket.subject, ticket.body, sentiment=sentiment
         )
         combined_response = f"{reply_subject}\n\n{reply_body}"
 
         # Step 4: Persist locally
-        saved_local = save_ticket_locally(
-            ticket.customer_email,
-            ticket.subject,
-            ticket.body,
-            sentiment,
-            escalation_status,
-            combined_response,
-        )
+        save_ticket(ticket.subject, ticket.body, sentiment, escalated_reason, combined_response,
+                    customer_email=ticket.customer_email, priority=ticket.priority)
 
         return TicketProcessedResponse(
             subject=ticket.subject,
             body=ticket.body,
             customer_email=ticket.customer_email,
+            priority=ticket.priority,
             sentiment=sentiment,
             sentiment_score=score,
             escalation_status=escalation_status,
             auto_response=combined_response,
-            saved_to_db=saved_local,
+            saved_to_db=True,
         )
     except Exception as e:
         logger.error(f"API Error processing ticket: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Ticket processing failed. Please try again later.")
 
 
 @app.get("/")
 def read_root():
-    return {"status": "online", "storage_mode": "local_json"}
+    return {"status": "online", "storage_mode": "sqlite"}

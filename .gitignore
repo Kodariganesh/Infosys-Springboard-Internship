@@ -21,6 +21,7 @@ Customer_Support_Ticket/logs/
 # Local databases and temporary data
 Customer_Support_Ticket/data/local_tickets_db.json
 Customer_Support_Ticket/data/local_tickets_db.json.tmp
+Customer_Support_Ticket/data/tickets.db
 
 # OS-specific files
 .DS_Store

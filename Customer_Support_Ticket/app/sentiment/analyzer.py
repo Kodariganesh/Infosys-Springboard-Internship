@@ -5,6 +5,7 @@ Sentiment analysis using HuggingFace models or Grok API
 import requests
 import json
 import logging
+import pickle
 from app import config
 
 logger = logging.getLogger(__name__)
@@ -15,11 +16,18 @@ class HuggingFaceSentimentAnalyzer:
     
     def __init__(self):
         self.pipeline = None
+        self._loaded_local_model = False
         # Lazy load pipeline to avoid loading heavy models unnecessarily
         
     def _load_pipeline(self):
         if self.pipeline is None:
             try:
+                if config.SENTIMENT_ANALYSIS_MODEL.exists():
+                    with open(config.SENTIMENT_ANALYSIS_MODEL, "rb") as model_file:
+                        self.pipeline = pickle.load(model_file)
+                    self._loaded_local_model = True
+                    logger.info("Loaded locally trained sentiment model.")
+                    return
                 from transformers import pipeline
                 # Use HF Token if provided
                 use_auth_token = config.HF_TOKEN if config.HF_TOKEN else None
@@ -47,6 +55,13 @@ class HuggingFaceSentimentAnalyzer:
             
         try:
             self._load_pipeline()
+            if self._loaded_local_model:
+                probabilities = self.pipeline.predict_proba([text])[0]
+                best_index = probabilities.argmax()
+                return {
+                    "sentiment": str(self.pipeline.classes_[best_index]).lower(),
+                    "score": float(probabilities[best_index]),
+                }
             result = self.pipeline(text)[0]
             label = result['label'].lower()
             score = result['score']

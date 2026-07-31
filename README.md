@@ -58,7 +58,7 @@ Infosys-Springboard-Internship/
 ### 1. Prerequisite Setup
 Generate a free API key at **[Google AI Studio](https://aistudio.google.com/)**.
 
-Open the project folder, create a file named `.env` inside `Customer_Support_Ticket/`, and populate it:
+Open the project folder, copy `Customer_Support_Ticket/.env.example` to `Customer_Support_Ticket/.env`, and populate it:
 ```env
 # Google Gemini API key (Free Tier)
 GEMINI_API_KEY="your_api_key_here"
@@ -93,7 +93,9 @@ Verify that all packages are loading and executing correctly by running the unit
 .\venv\Scripts\python.exe -m unittest Customer_Support_Ticket/test_app.py
 ```
 
+Processed tickets are saved locally in `Customer_Support_Ticket/data/tickets.db` (SQLite). The database file is excluded from Git.
+
 ---
 
 ## Conclusion
-The **Customer Support Tickets** system is a comprehensive, production-ready solution that bridges machine learning analysis with software interfaces. By utilizing modern web dashboards, REST APIs, and free GenAI integrations, this project demonstrates standard best practices in AI-integrated software engineering.
+The **Customer Support Tickets** system is an internship prototype that demonstrates an end-to-end AI-assisted support workflow through a dashboard, REST API, and CLI. Provider-backed response generation is optional; the application continues with local templates when no API key is configured.
