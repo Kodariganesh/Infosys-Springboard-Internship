@@ -3,7 +3,6 @@ Data loading and preprocessing utilities
 """
 
 import pandas as pd
-import numpy as np
 from pathlib import Path
 
 
@@ -34,6 +33,9 @@ def clean_data(df):
     Returns:
         Cleaned DataFrame
     """
+    if df.empty:
+        return df.drop_duplicates()
+
     # Identify column types
     numerical_cols = df.select_dtypes(include=['float64', 'int64']).columns
     categorical_cols = df.select_dtypes(include=['object']).columns
@@ -42,7 +44,9 @@ def clean_data(df):
     if len(numerical_cols) > 0:
         df[numerical_cols] = df[numerical_cols].fillna(df[numerical_cols].mean())
     if len(categorical_cols) > 0:
-        df[categorical_cols] = df[categorical_cols].fillna(df[categorical_cols].mode().iloc[0])
+        modes = df[categorical_cols].mode()
+        if not modes.empty:
+            df[categorical_cols] = df[categorical_cols].fillna(modes.iloc[0])
     
     # Remove duplicates
     df = df.drop_duplicates()

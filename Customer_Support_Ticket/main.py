@@ -180,9 +180,8 @@ def main():
         if args.action in ['sentiment', 'all', 'respond']:
             df_sent = run_sentiment(df_clean, sample_size=args.sample_size)
             
-        df_esc = df_clean
         if args.action in ['escalate', 'all']:
-            df_esc = run_escalation(df_sent)
+            run_escalation(df_clean)
             
         if args.action in ['respond', 'all']:
             # Use the sentiment-analyzed dataframe

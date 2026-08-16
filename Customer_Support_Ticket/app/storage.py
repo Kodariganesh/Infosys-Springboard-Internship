@@ -9,14 +9,15 @@ DB_PATH = config.DATA_DIR / "tickets.db"
 
 
 def _connect():
-    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
     return connection
 
 
 def initialize_database():
-    with _connect() as connection:
+    connection = _connect()
+    try:
         connection.execute("""
             CREATE TABLE IF NOT EXISTS tickets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,6 +33,9 @@ def initialize_database():
             SET escalation = NULL
             WHERE escalation = 0 OR escalation = 'No escalation triggered'
         """)
+        connection.commit()
+    finally:
+        connection.close()
 
 
 def save_ticket(title, body, sentiment, escalation, response="", customer_email=None, priority=1):
@@ -39,13 +43,17 @@ def save_ticket(title, body, sentiment, escalation, response="", customer_email=
     initialize_database()
     escalation = escalation or None
     timestamp = datetime.now(timezone.utc).isoformat()
-    with _connect() as connection:
+    connection = _connect()
+    try:
         cursor = connection.execute("""
             INSERT INTO tickets
             (customer_email, title, body, priority, timestamp, sentiment, escalation, response)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (customer_email, title, body, int(priority), timestamp, sentiment, escalation, response))
         ticket_id = cursor.lastrowid
+        connection.commit()
+    finally:
+        connection.close()
     return {"id": ticket_id, "customer_email": customer_email, "title": title, "body": body,
             "priority": int(priority), "timestamp": timestamp, "sentiment": sentiment,
             "escalation": escalation, "response": response}
@@ -57,5 +65,8 @@ def load_tickets(limit=None):
     query, parameters = "SELECT * FROM tickets ORDER BY id DESC", ()
     if limit is not None:
         query, parameters = query + " LIMIT ?", (int(limit),)
-    with _connect() as connection:
+    connection = _connect()
+    try:
         return [dict(row) for row in connection.execute(query, parameters).fetchall()]
+    finally:
+        connection.close()

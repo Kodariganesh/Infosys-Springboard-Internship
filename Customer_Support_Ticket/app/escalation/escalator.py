@@ -3,6 +3,7 @@ Ticket escalation logic based on priority levels and keywords
 """
 
 import logging
+import re
 from app import config
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ class TicketEscalator:
         if text and isinstance(text, str):
             text_lower = text.lower()
             for kw in self.keywords:
-                if kw in text_lower:
+                if re.search(rf"\b{re.escape(kw.lower())}\b", text_lower):
                     return True, f"Escalation Keyword Found: '{kw}'"
                     
         return False, "No escalation triggered"

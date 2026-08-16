@@ -7,6 +7,7 @@ import tempfile
 from unittest.mock import patch
 from pathlib import Path
 import sys
+import pandas as pd
 
 # Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -30,6 +31,13 @@ class TestDataLoader(unittest.TestCase):
         from app.analysis.data_loader import load_data, clean_data
         self.assertIsNotNone(load_data)
         self.assertIsNotNone(clean_data)
+
+    def test_clean_data_handles_empty_dataframe(self):
+        """Empty datasets should not fail during mode-based fill."""
+        from app.analysis.data_loader import clean_data
+        df = pd.DataFrame(columns=["Ticket Subject", "Ticket Description"])
+        cleaned = clean_data(df)
+        self.assertTrue(cleaned.empty)
 
 
 class TestSentimentAnalyzer(unittest.TestCase):
@@ -63,21 +71,29 @@ class TestEscalator(unittest.TestCase):
         # Critical keywords should escalate even at a low priority.
         self.assertTrue(escalator.should_escalate(priority=1, text="Critical outage")[0])
 
+        # Keywords should match full words, not unrelated substrings.
+        self.assertFalse(escalator.should_escalate(priority=1, text="The majority of users are happy")[0])
+
 
 class TestStorage(unittest.TestCase):
     """Test SQLite ticket persistence without touching application data."""
 
+    def setUp(self):
+        from app import storage
+        self.original_db_path = storage.DB_PATH
+        self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        storage.DB_PATH = Path(self.temp_dir.name) / "test_tickets.sqlite3"
+
+    def tearDown(self):
+        from app import storage
+        storage.DB_PATH = self.original_db_path
+        self.temp_dir.cleanup()
+
     def test_ticket_round_trip(self):
         from app import storage
-        original_db_path = storage.DB_PATH
-        with tempfile.TemporaryDirectory() as temp_dir:
-            storage.DB_PATH = Path(temp_dir) / "tickets.db"
-            try:
-                saved = storage.save_ticket("Billing issue", "Payment failed", "Slightly Negative",
-                                            "High Priority Level (4)", priority=4)
-                tickets = storage.load_tickets()
-            finally:
-                storage.DB_PATH = original_db_path
+        saved = storage.save_ticket("Billing issue", "Payment failed", "Slightly Negative",
+                                    "High Priority Level (4)", priority=4)
+        tickets = storage.load_tickets()
 
         self.assertEqual(saved["priority"], 4)
         self.assertEqual(len(tickets), 1)
@@ -85,14 +101,8 @@ class TestStorage(unittest.TestCase):
 
     def test_false_escalation_is_stored_as_empty(self):
         from app import storage
-        original_db_path = storage.DB_PATH
-        with tempfile.TemporaryDirectory() as temp_dir:
-            storage.DB_PATH = Path(temp_dir) / "tickets.db"
-            try:
-                storage.save_ticket("Question", "How do I update my profile?", "Neutral", False)
-                ticket = storage.load_tickets()[0]
-            finally:
-                storage.DB_PATH = original_db_path
+        storage.save_ticket("Question", "How do I update my profile?", "Neutral", False)
+        ticket = storage.load_tickets()[0]
 
         self.assertIsNone(ticket["escalation"])
 
